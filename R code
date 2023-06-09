@@ -1,0 +1,546 @@
+
+R version 4.2.2 (2022-10-31) -- "Innocent and Trusting"
+Copyright (C) 2022 The R Foundation for Statistical Computing
+Platform: aarch64-apple-darwin20 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library('tidyverse')
+── Attaching packages ────────────────────────────────────────────────────────── tidyverse 1.3.2 ──
+✔ ggplot2 3.4.0     ✔ purrr   1.0.0
+✔ tibble  3.2.1     ✔ dplyr   1.1.2
+✔ tidyr   1.2.1     ✔ stringr 1.5.0
+✔ readr   2.1.3     ✔ forcats 0.5.2
+── Conflicts ───────────────────────────────────────────────────────────── tidyverse_conflicts() ──
+✖ dplyr::filter() masks stats::filter()
+✖ dplyr::lag()    masks stats::lag()
+> 
+> 
+> # 1. Read in data ----------
+> 
+> clin_df <- read_csv('./data/clinical-study.csv')
+Error: './data/clinical-study.csv' does not exist in current working directory ('/Users/simranjain/GSK code').
+> library(readxl)
+> clinical_study <- read_excel("~/Documents/Virtual internship/wetransfer_analytical_roles-pdf_2023-05-04_1151/clinical-study.xlsx")
+> View(clinical_study)                                                                           
+> library(readxl)
+> protein_levels <- read_excel("~/Documents/Virtual internship/wetransfer_analytical_roles-pdf_2023-05-04_1151/protein-levels.xlsx")
+> View(protein_levels)                                                                           
+> clin_df <- clinical_study
+> # 2. Examine data ----------
+> 
+> head(clin_df, 7)
+# A tibble: 7 × 7
+  subject_id   age sex    weight             height trt_grp RESPONSE
+  <chr>      <dbl> <chr>  <chr>               <dbl> <chr>   <chr>   
+1 SUBJ_001      46 Female 84.66                1.59 DRUG    N       
+2 SUBJ_001      46 Female 84.66                1.59 DRUG    N       
+3 SUBJ_002      47 Female 71.209999999999994   1.64 DRUG    Y       
+4 SUBJ_003      48 Female 69.849999999999994   1.73 CONTROL N       
+5 SUBJ_004      59 Female 62.94                1.5  DRUG    Y       
+6 SUBJ_005      59 Female 113.91               1.63 CONTROL N       
+7 SUBJ_006      63 Male   79.33                1.77 CONTROL Y       
+> 
+> view(clin_df)
+> 
+> summary(clin_df)
+  subject_id             age            sex               weight              height     
+ Length:772         Min.   : 7.20   Length:772         Length:772         Min.   :1.193  
+ Class :character   1st Qu.:57.00   Class :character   Class :character   1st Qu.:1.600  
+ Mode  :character   Median :62.00   Mode  :character   Mode  :character   Median :1.670  
+                    Mean   :61.58                                         Mean   :1.677  
+                    3rd Qu.:67.00                                         3rd Qu.:1.760  
+                    Max.   :79.00                                         Max.   :1.940  
+   trt_grp            RESPONSE        
+ Length:772         Length:772        
+ Class :character   Class :character  
+ Mode  :character   Mode  :character  
+                                      
+                                      
+                                      
+> # 3. Basic cleaning ----------
+> 
+> # Rename columns per best practice
+> clean_df <- clin_df %>%
++     rename(
++         treatment_group = trt_grp,
++         response = RESPONSE,
++         participant_id = subject_id
++     )
+> 
+> # Filter out rows based on col
+> clean_df <- clean_df %>%
++     filter(age >= 21)
+> # Remove duplicate rows by ID
+> clean_df <- clean_df %>% 
++     distinct(participant_id, .keep_all = TRUE)
+> # Count NAs per column
+> nulls_per_col <- clean_df %>%
++     summarise(across(everything(), ~ sum(is.na(.))))
+> 
+> # Fill NAs with mean
+> clean_df <- clean_df %>%
++     mutate(across(c(weight), ~replace_na(
++         .,
++         mean(., na.rm =  TRUE),
++     )))
+Error in `mutate()`:
+ℹ In argument: `across(c(weight), ~replace_na(., mean(., na.rm = TRUE), ))`.
+Caused by error in `across()`:
+! Can't compute column `weight`.
+Caused by error in `vec_assign()`:
+! Can't convert `replace` <double> to match type of `data` <character>.
+Run `rlang::last_trace()` to see where the error occurred.
+> # Change outcome to categorical
+> clean_df <- clean_df %>%
++     mutate(response = as_factor(response))
+> 
+> clean_df <- clean_df %>% mutate(weight=as.numeric(weight))
+Warning message:
+There was 1 warning in `mutate()`.
+ℹ In argument: `weight = as.numeric(weight)`.
+Caused by warning:
+! NAs introduced by coercion 
+> # Fill NAs with mean
+> clean_df <- clean_df %>%
++     mutate(across(c(weight), ~replace_na(
++         .,
++         mean(., na.rm =  TRUE),
++     )))
+> 
+> # 4. Create new features ----------
+> 
+> # Calculate BMI
+> clean_df <- clean_df %>%
++     mutate(bmi = weight / height^2, .after = height)
+> #mutate() – adds new variables while retaining old variables to a data frame. transmute() – adds new variables and removes old ones from a data frame. mutate_all() – changes every variable in a data frame simultaneously.
+> summary(clean_df)
+ participant_id          age            sex                weight           height     
+ Length:768         Min.   :37.00   Length:768         Min.   : 46.17   Min.   :1.420  
+ Class :character   1st Qu.:57.00   Class :character   1st Qu.: 75.93   1st Qu.:1.600  
+ Mode  :character   Median :62.00   Mode  :character   Median : 89.15   Median :1.680  
+                    Mean   :61.81                      Mean   : 91.39   Mean   :1.679  
+                    3rd Qu.:67.00                      3rd Qu.:104.40   3rd Qu.:1.760  
+                    Max.   :79.00                      Max.   :182.50   Max.   :1.940  
+      bmi        treatment_group    response
+ Min.   :17.98   Length:768         N:434   
+ 1st Qu.:27.36   Class :character   Y:334   
+ Median :32.08   Mode  :character           
+ Mean   :32.32                              
+ 3rd Qu.:36.35                              
+ Max.   :67.52                              
+> # Create categorical col for age
+> clean_df <- clean_df %>%
++     mutate(age_bracket = cut_interval(age, n = 6), .after = age)
+> 
+> count(clean_df, age_bracket, sort = TRUE)
+# A tibble: 6 × 2
+  age_bracket     n
+  <fct>       <int>
+1 (58,65]       282
+2 (65,72]       195
+3 (51,58]       183
+4 (44,51]        51
+5 (72,79]        48
+6 [37,44]         9
+> 
+> median(clean_df$age)
+[1] 62
+> clean_df <- clean_df %>%
++     mutate(age_gt_median = if_else(age > median(age), TRUE, FALSE), .after = age)
+> age_check <- clean_df %>%
++     group_by(age_gt_median) %>%
++     summarise(
++         min_age = min(age),
++         max_age = max(age)
++     )
+> 
+> view(age_check)
+> protein_df <- protein_levels
+> summarise(protein_df)
+# A tibble: 1 × 0
+> view(protein_df)
+> summary(protein_df)
+ participant_id     protein_concentration
+ Length:768         Length:768           
+ Class :character   Class :character     
+ Mode  :character   Mode  :character     
+> protein_df<- protein_df %>% mutate(protein_concentration= as.numeric(protein_concentration))
+Warning message:
+There was 1 warning in `mutate()`.
+ℹ In argument: `protein_concentration = as.numeric(protein_concentration)`.
+Caused by warning:
+! NAs introduced by coercion 
+> summary(protein_df)
+ participant_id     protein_concentration
+ Length:768         Min.   : 44.0        
+ Class :character   1st Qu.: 99.0        
+ Mode  :character   Median :117.0        
+                    Mean   :121.7        
+                    3rd Qu.:141.0        
+                    Max.   :199.0        
+                    NA's   :5            
+> clean_df <- clean_df %>% left_join(protein_df, join_by(participant_id))
+> # Fill NAs in protein conc with mean
+> clean_df <- clean_df %>%
++     mutate(across(c(protein_concentration), ~replace_na(
++         .,
++         mean(., na.rm =  TRUE),
++     )))
+> library('tidyverse')
+> 
+> 
+> # 0. Run script to load analysis-ready data ----------
+> 
+> source('R/01_clean_and_transform.R')
+Error in file(filename, "r", encoding = encoding) : 
+  cannot open the connection
+In addition: Warning message:
+In file(filename, "r", encoding = encoding) :
+  cannot open file 'R/01_clean_and_transform.R': No such file or directory
+> view(clean_df)
+> age_by_treatment <- clean_df %>% group_by(treatment_group) %>% summarise(num_patients = n(),min_age = min(age), average_age= mean(age, na.rm=TRUE), max_age =max(age))
+> # Compare response by protein conc
+> protein_conc_by_response <- clean_df %>%
++     group_by(response) %>%
++     summarise(
++         num_patients = n(),
++         average_conc = mean(protein_concentration, na.rm = TRUE),
++         min_conc = min(protein_concentration),
++         max_conc = max(protein_concentration)
++     )
+> protein_conc_by_response
+# A tibble: 2 × 5
+  response num_patients average_conc min_conc max_conc
+  <fct>           <int>        <dbl>    <dbl>    <dbl>
+1 N                 434         135.       65      199
+2 Y                 334         105.       44      187
+> # Simple look at impact of treatment on response
+> treatment_vs_response <- clean_df %>%
++     group_by(treatment_group, response) %>%
++     summarise(
++         num_patients = n(),
++         average_protein = mean(protein_concentration, na.rm = TRUE)
++     )
+`summarise()` has grouped output by 'treatment_group'. You can override using the `.groups`
+argument.
+> 
+> treatment_vs_response
+# A tibble: 4 × 4
+# Groups:   treatment_group [2]
+  treatment_group response num_patients average_protein
+  <chr>           <fct>           <int>           <dbl>
+1 CONTROL         N                 261            129.
+2 CONTROL         Y                 124            106.
+3 DRUG            N                 173            144.
+4 DRUG            Y                 210            104.
+> # 6. Visualise ----------
+> 
+> # Plot age vs. weight distribution
+> ggplot(clean_df) +
++     geom_point(mapping = aes(age, weight, colour = sex), position = 'jitter')
+> 
+> # Plot response vs. bmi as boxplot
+> ggplot(clean_df) +
++     geom_boxplot(mapping = aes(response, bmi)) +
++     facet_wrap(. ~ treatment_group)
+> # Plot protein concentration vs. BMI as scatter plot
+> ggplot(clean_df) +
++     geom_point(mapping = aes(bmi, protein_concentration, colour = response)) +
++     facet_wrap(. ~ treatment_group)
+> library('randomForest')
+randomForest 4.7-1.1
+Type rfNews() to see new features/changes/bug fixes.
+
+Attaching package: ‘randomForest’
+
+The following object is masked from ‘package:dplyr’:
+
+    combine
+
+The following object is masked from ‘package:ggplot2’:
+
+    margin
+
+> library('emmeans')
+> library('tidyverse')
+> install.packages('randomForest')
+Error in install.packages : Updating loaded packages
+> install.packages('emmeans')
+Error in install.packages : Updating loaded packages
+
+Restarting R session...
+
+> install.packages("emmeans")
+trying URL 'https://cran.rstudio.com/bin/macosx/big-sur-arm64/contrib/4.2/emmeans_1.8.6.tgz'
+Content type 'application/x-gzip' length 2134789 bytes (2.0 MB)
+==================================================
+downloaded 2.0 MB
+
+
+The downloaded binary packages are in
+	/var/folders/3y/8ycy3_c12gl30ydr8v3f4v8c0000gn/T//RtmpQHMFoP/downloaded_packages
+> install.packages('randomForest')
+trying URL 'https://cran.rstudio.com/bin/macosx/big-sur-arm64/contrib/4.2/randomForest_4.7-1.1.tgz'
+Content type 'application/x-gzip' length 256650 bytes (250 KB)
+==================================================
+downloaded 250 KB
+
+
+The downloaded binary packages are in
+	/var/folders/3y/8ycy3_c12gl30ydr8v3f4v8c0000gn/T//RtmpQHMFoP/downloaded_packages
+> library('randomForest')
+randomForest 4.7-1.1
+Type rfNews() to see new features/changes/bug fixes.
+> library('emmeans')
+> library('tidyverse')
+── Attaching packages ────────────────────────────────────────────────────────── tidyverse 1.3.2 ──
+✔ ggplot2 3.4.0     ✔ purrr   1.0.0
+✔ tibble  3.2.1     ✔ dplyr   1.1.2
+✔ tidyr   1.2.1     ✔ stringr 1.5.0
+✔ readr   2.1.3     ✔ forcats 0.5.2
+── Conflicts ───────────────────────────────────────────────────────────── tidyverse_conflicts() ──
+✖ dplyr::combine()  masks randomForest::combine()
+✖ dplyr::filter()   masks stats::filter()
+✖ dplyr::lag()      masks stats::lag()
+✖ ggplot2::margin() masks randomForest::margin()
+> library(readxl)
+> clinical_study_ae_taskB <- read_excel("~/Documents/Virtual internship/wetransfer_analytical_roles-pdf_2023-05-04_1151/clinical-study-ae-taskB.xlsx")
+> View(clinical_study_ae_taskB)                                                                  
+> clin_df <- clinical_study_ae_taskB
+> #' Select some key variables and derive a scaled protein concentration
+> clin_df2 <- 
++     clin_df %>% 
++     select(participant_id,
++            response, 
++            treatment_group, 
++            protein_concentration) %>% 
++     mutate(protein_trans = as.numeric(scale(protein_concentration)),
++            response = as.factor(response)) 
+> 
+> #' We can fit a simple logistic regression here to investigate `treatment_group`
+> #' and `protein_trans`
+> fit_resp <- glm(response ~ treatment_group * protein_trans,
++                 data = clin_df2,
++                 family = binomial())
+> fit_resp
+
+Call:  glm(formula = response ~ treatment_group * protein_trans, family = binomial(), 
+    data = clin_df2)
+
+Coefficients:
+                      (Intercept)                treatment_groupDRUG  
+                          -0.9154                             1.0898  
+                    protein_trans  treatment_groupDRUG:protein_trans  
+                          -0.9457                            -1.4476  
+
+Degrees of Freedom: 767 Total (i.e. Null);  764 Residual
+Null Deviance:	    1052 
+Residual Deviance: 741.4 	AIC: 749.4
+> #' Get a range of scaled protein values for plotting purposes
+> rng <- range(clin_df2$protein_trans)
+> seq_prot_scaled <- seq(rng[1], rng[2], 0.1)
+> #' Generate predicted contrasts from this model as function of protein 
+> #' concentration
+> pred_rslt_probs <- 
++     emmeans(fit_resp, ~ treatment_group | protein_trans, 
++             at = list(protein_trans = seq_prot_scaled)) %>% 
++     regrid() %>%
++     pairs() %>% 
++     confint() %>% 
++     as_tibble()
+> 
+> #' Now we can plot the results! Notice how the model fit suggests that the 
+> #' size of the treatment effect (risk difference of control vs drug) depends 
+> #' on the protein concentration that a patient has at baseline 
+> pred_rslt_probs %>% 
++     mutate(protein_trans = as.numeric(as.character(protein_trans))) %>% 
++     ggplot(aes(x = protein_trans))+
++     geom_ribbon(aes(y = estimate, col = contrast, fill = contrast, 
++                     ymin = asymp.LCL, ymax = asymp.UCL), col = FALSE, alpha = 0.5)+
++     geom_line(aes(y = estimate))+
++     geom_hline(yintercept = 0, lty = 2)+
++     geom_rug(data = clin_df2, 
++              sides = "b")+
++     labs(y = "Risk Difference (Control vs drug)",
++          x = "Protein concentration (scaled)")+
++     guides(fill = "none")+
++     cowplot::theme_cowplot()
+Error in loadNamespace(x) : there is no package called ‘cowplot’
+> install.packages('cowplot')
+trying URL 'https://cran.rstudio.com/bin/macosx/big-sur-arm64/contrib/4.2/cowplot_1.1.1.tgz'
+Content type 'application/x-gzip' length 1374380 bytes (1.3 MB)
+==================================================
+downloaded 1.3 MB
+
+
+The downloaded binary packages are in
+	/var/folders/3y/8ycy3_c12gl30ydr8v3f4v8c0000gn/T//RtmpQHMFoP/downloaded_packages
+> #' Get a range of scaled protein values for plotting purposes
+> rng <- range(clin_df2$protein_trans)
+> seq_prot_scaled <- seq(rng[1], rng[2], 0.1)
+> 
+> #' Generate predicted contrasts from this model as function of protein 
+> #' concentration
+> pred_rslt_probs <- 
++     emmeans(fit_resp, ~ treatment_group | protein_trans, 
++             at = list(protein_trans = seq_prot_scaled)) %>% 
++     regrid() %>%
++     pairs() %>% 
++     confint() %>% 
++     as_tibble()
+> 
+> 
+> #' Now we can plot the results! Notice how the model fit suggests that the 
+> #' size of the treatment effect (risk difference of control vs drug) depends 
+> #' on the protein concentration that a patient has at baseline 
+> pred_rslt_probs %>% 
++     mutate(protein_trans = as.numeric(as.character(protein_trans))) %>% 
++     ggplot(aes(x = protein_trans))+
++     geom_ribbon(aes(y = estimate, col = contrast, fill = contrast, 
++                     ymin = asymp.LCL, ymax = asymp.UCL), col = FALSE, alpha = 0.5)+
++     geom_line(aes(y = estimate))+
++     geom_hline(yintercept = 0, lty = 2)+
++     geom_rug(data = clin_df2, 
++              sides = "b")+
++     labs(y = "Risk Difference (Control vs drug)",
++          x = "Protein concentration (scaled)")+
++     guides(fill = "none")+
++     cowplot::theme_cowplot()
+> 
+> #' The previous output and plot was on a risk difference scale, but we can also 
+> #' consider this on a relative odds ratio scale
+> pred_rslt_rel <- 
++     emmeans(fit_resp, ~ treatment_group | protein_trans, 
++             at = list(protein_trans = seq_prot_scaled)) %>% 
++     pairs(type = "mu") %>% 
++     confint() %>% 
++     as_tibble() %>% 
++     mutate(protein_trans = as.numeric(as.character(protein_trans)))
+> #' Again we plot the result and again note the interaction, though now observe 
+> #' that the shape of the effect is linear on this scale
+> pred_rslt_rel %>% 
++     mutate(protein_trans = as.numeric(as.character(protein_trans))) %>% 
++     ggplot(aes(x = protein_trans))+
++     geom_ribbon(aes(y = odds.ratio, col = contrast, fill = contrast, 
++                     ymin = asymp.LCL, ymax = asymp.UCL), col = FALSE, alpha = 0.5)+
++     geom_line(aes(y = odds.ratio))+
++     geom_hline(yintercept = 1, lty = 2)+
++     scale_y_log10()+
++     geom_rug(data = clin_df2, 
++              sides = "b")+
++     labs(y = "Odds Ratio (Control vs drug)",
++          x = "Protein concentration (scaled)")+
++     guides(fill = "none")+
++     cowplot::theme_cowplot()
+> #' Alternative models and algorithms can be used. Here is an illustration of 
+> #' using a random forest to derive the so-called "CATE" - conditional average 
+> #' treatment effect
+> 
+> #' For this model we devise a specific training set
+> set.seed(160523)
+> id_train <- clin_df[sample(1:NROW(clin_df), 0.7*NROW(clin_df)),"participant_id"]
+> 
+> clin_df2 <- 
++     clin_df %>% 
++     mutate(protein_trans = as.numeric(scale(protein_concentration)),
++            response = as.factor(response),
++            train_flag = if_else(participant_id %in% id_train$participant_id, 
++                                 TRUE, FALSE)) %>% 
++     select(-participant_id, -ae, -protein_concentration)
+> 
+> #' We train the random forests separately within each treatment arm, thereby 
+> #' ensuring an interaction between all features and the treatment group
+> mod_control <- randomForest(response ~ . - treatment_group - train_flag,
++                             data = filter(clin_df2, 
++                                           train_flag,
++                                           treatment_group == "CONTROL"))
+> mod_drug <- randomForest(response ~ . - treatment_group - train_flag,
++                          data = filter(clin_df2, 
++                                        train_flag,
++                                        treatment_group == "DRUG"))
+> #' Various methods exist to look at feature importance, here is one output:
+> map(list(drug = mod_drug,
++          control = mod_control),
++     .f = ~ importance(.x) %>%
++         as_tibble(rownames = 'feature') %>%
++         arrange(desc(MeanDecreaseGini)))
+$drug
+# A tibble: 5 × 2
+  feature       MeanDecreaseGini
+  <chr>                    <dbl>
+1 protein_trans            80.2 
+2 weight                   21.7 
+3 height                   14.3 
+4 age                      13.9 
+5 sex                       2.54
+
+$control
+# A tibble: 5 × 2
+  feature       MeanDecreaseGini
+  <chr>                    <dbl>
+1 protein_trans            38.5 
+2 weight                   33.9 
+3 age                      21.2 
+4 height                   19.3 
+5 sex                       1.79
+
+> 
+> #' Next we can add the predictions onto the data. Here we will predict for 
+> #' every patient their probability of a response on control and additionally 
+> #' their response on drug.
+> clin_df3 <- 
++     clin_df2 %>% 
++     nest(data = everything()) %>% 
++     mutate(pred_control = map(data, ~ 100*predict(mod_control, .x, 
++                                                   type = "prob")[,2]),
++            pred_drug = map(data, ~ 100*predict(mod_drug, .x, 
++                                                type = "prob")[,2])) %>% 
++     unnest(c(data, pred_control, pred_drug)) %>% 
++     mutate(risk_diff = pred_drug - pred_control)
+> #' Now we can look at a simple scatter plot of the predictions filtered to the 
+> #' test data split (i.e., not the data we trained the model on). An interesting 
+> #' expression of responses are noted in the clustering of points above the 
+> #' diagonal
+> pl1 <- 
++     clin_df3 %>% 
++     filter(!train_flag) %>% 
++     ggplot(aes(x = pred_control, y = pred_drug, col = response))+
++     geom_point()+
++     geom_abline(slope = 1, intercept = 0, lty = 2)+
++     labs(x = "Probability of response on control (%)",
++          y = "Probability of response on drug (%)")+
++     theme_bw()
+> 
+> pl1
+> 
+> #' One way to investigate what drives this scatter of points is to group by some 
+> #' characteristics in the features. Here we split by protein concentration at 
+> #' the mean (scaled here so this will be zero). Those with a lower protein 
+> #' concentration have the higher predicted probability of response on drug and 
+> #' we note there is a considerable proportion of observed responses == "Y" here
+> pl2 <- 
++     clin_df3 %>% 
++     filter(!train_flag) %>% 
++     mutate(protein_cat = if_else(protein_trans < 0, "Protein < 0", "Protein > 0")) %>% 
++     ggplot(aes(x = pred_control, y = pred_drug, col = response))+
++     geom_point()+
++     geom_abline(slope = 1, intercept = 0, lty = 2)+
++     facet_grid(.~protein_cat)+
++     labs(x = "Probability of response on control (%)",
++          y = "Probability of response on drug (%)")+
++     theme_bw()
+> 
+> pl2
